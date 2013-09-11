@@ -18,6 +18,8 @@ class ShowVersion(SwitchError):
     pass
 class ShowHelpZshComp(SwitchError):
     pass
+class ShowCompletion(SwitchError):
+    pass
 
 class SwitchParseInfo(object):
     __slots__ = ["swname", "val", "index"]
@@ -286,6 +288,8 @@ class Application(object):
             raise ShowVersion()
         if six.get_method_function(self.help_zsh_comp) in swfuncs:
             raise ShowHelpZshComp()
+        if six.get_method_function(self.complete) in swfuncs:
+            raise ShowCompletion()
 
         requirements = {}
         exclusions = {}
@@ -350,6 +354,8 @@ class Application(object):
             inst.version()
         except ShowHelpZshComp:
             inst.help_zsh_comp()
+        except ShowCompletion:
+            inst.complete(swfuncs, tailargs)
         except SwitchError:
             ex = sys.exc_info()[1]  # compatibility with python 2.5
             print("Error: %s" % (ex,))
@@ -637,7 +643,9 @@ class Application(object):
             switch_defs = switches(command)
 
             func_defs.append("%s() {\n" % name +
-                             ("typeset __m_subcommands\n"
+                             "_debug %s\n" % name +
+                             ("typeset __m_words __m_current=$CURRENT __m_subcommands\n"
+                              "__m_words=(${(@)words})\n"
                               if command.parent is None else "") +
                              func_extras +
                              "_arguments -s -A ':' " +
@@ -649,6 +657,17 @@ class Application(object):
             return func_defs
 
         func_defs = zsh_completion_functions("_" + self.PROGNAME, self)
+
+        func_defs.append("""
+_debug() {
+  echo "=== $1 ===" >> /tmp/log
+  echo "expl: $expl" >> /tmp/log
+  echo "CURRENT: $CURRENT" >> /tmp/log
+  echo "words: $words" >> /tmp/log
+  echo "line: $line" >> /tmp/log
+  echo "context: $curcontext" >> /tmp/log
+}
+        """)
 
         func_defs.append("""
 __is_word_in_array () {
@@ -670,8 +689,74 @@ _next() {
 }
         """)
 
+        func_defs.append("""
+__m_remove_subcommand () {
+  for n in {$__m_current..${#__m_words}}
+  if __is_word_in_array ${__m_words[$n]} ${__m_subcommands}
+  then
+    __m_words=("${(@)__m_words[1,$(( $n - 1 ))]}")
+    break
+  fi
+}
+
+__m_complete_general () {
+  local results global_expl="$expl" expl where
+  where=$1; shift
+  _debug "complete_general with path $where"
+
+  __m_remove_subcommand
+  results=($(_call_program complete-general \\"${(@)__m_words}\\" --complete $where:$CURRENT 2>> /tmp/log))
+  _wanted complete-general expl '' compadd $global_expl - $results
+}
+
+__m_complete_path_like () {
+  local results global_expl="$expl" expl where
+  where=$1; shift
+  _debug "complete_path_like with path $where"
+
+  __m_remove_subcommand
+  results=($(_call_program complete-path-like \\"${(@)__m_words}\\" --complete $where:$CURRENT 2>> /tmp/log))
+  _wanted complete-path-like expl '' _multi_parts $global_expl -f - / results
+}
+        """)
+
         print "#compdef %s\n\n" % self.PROGNAME + "\n\n" \
             + "\n".join(func_defs) + "\n" + '_%s "$@"' % self.PROGNAME
+
+    @switch(["--complete"], argtype=str, overridable = True, group = "Hidden-switches")
+    def complete(self, swfuncs, tailargs):  # @ReservedAssignment
+        """Hidden switch for dynamic completion"""
+
+        complete_func = self._switches_by_name['complete'].func
+        for _, f, sf in sorted([(sf.index, f, sf)
+                                for f, sf in swfuncs.iteritems()]):
+            if f == complete_func:
+                argname, current = sf.val[0].split(':')
+            else:
+                f(self, *sf.val)
+
+        if argname.startswith('+'):
+            swinfo = self._switches_by_name[argname[1:]]
+            func = swinfo.func
+            prefix = swfuncs[func].val[0]
+            completion = swinfo.completion
+        else:
+            comp_dict = getattr(self.main, "__plumbum_completion__", dict())
+            completion = comp_dict[argname]
+
+            m_args, m_varargs, _, _ = inspect.getargspec(self.main)
+            m_args = m_args[1:] # remove self
+
+            try:
+                index = m_args.index(argname)
+                prefix = tailargs[index]
+            except ValueError:
+                # must be in m_varargs then
+                assert(m_varargs == argname)
+                prefix = tailargs[len(m_args) + int(current) - 1]
+
+        for x in completion.complete(self, prefix):
+                print x
 
     def _get_prog_version(self):
         ver = None
