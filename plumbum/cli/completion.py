@@ -3,9 +3,11 @@ def pre_quote(string):
     return string.replace("\\", "\\\\") \
                  .replace('"', '\\"')
 
+
 class Completion(object):
     def zsh_action(self, argname):
         raise NotImplemented
+
 
 class FileCompletion(Completion):
     def __init__(self, glob=None):
@@ -14,9 +16,11 @@ class FileCompletion(Completion):
     def zsh_action(self, argname):
         return "_files" + (' -g "%s"' % pre_quote(self.glob) if self.glob else "")
 
+
 class DirectoryCompletion(Completion):
     def zsh_action(self, argname):
         return "_path_files -/"
+
 
 class ListCompletion(Completion):
     def __init__(self, *comp_list, **comp_dict):
@@ -39,6 +43,24 @@ class ListCompletion(Completion):
                                      for k,v in self.comp_dict.iteritems())
         else:
             return ""
+
+
+class DynamicCompletion(Completion):
+    def complete(self, command, prefix):
+        raise NotImplemented
+
+    def zsh_action(self, argname):
+        return " __m_complete_general %s" % argname
+
+
+class CallbackDynamicCompletion(DynamicCompletion):
+    def __init__(self, callback, *args):
+        self.callback = callback
+        self.args = args
+
+    def complete(self, command, prefix):
+        return self.callback(command, prefix, *self.args)
+
 
 def completion(*comp_array, **comp_dict):
 
