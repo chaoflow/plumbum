@@ -39,7 +39,7 @@ class SwitchInfo(object):
             setattr(self, k, v)
 
 def switch(names, argtype = None, argname = None, list = False, mandatory = False, requires = (),
-        excludes = (), help = None, overridable = False, group = "Switches"):
+        excludes = (), help = None, overridable = False, group = "Switches", completion = None):
     """
     A decorator that exposes functions as command-line switches. Usage::
 
@@ -121,6 +121,8 @@ def switch(names, argtype = None, argname = None, list = False, mandatory = Fals
     :param group: The switch's *group*; this is a string that is used to group related switches
                   together when ``--help`` is given. The default group is ``Switches``.
 
+    :param completion: A completion object to generate the zsh completion action.
+
     :returns: The decorated function (with a ``_switch_info`` attribute)
     """
     if isinstance(names, six.string_types):
@@ -143,7 +145,8 @@ def switch(names, argtype = None, argname = None, list = False, mandatory = Fals
             help2 = str(func)
         func._switch_info = SwitchInfo(names = names, argtype = argtype, list = list, func = func,
             mandatory = mandatory, overridable = overridable, group = group,
-            requires = requires, excludes = excludes, argname = argname2, help = help2)
+            requires = requires, excludes = excludes, argname = argname2, help = help2,
+            completion = completion)
         return func
     return deco
 
