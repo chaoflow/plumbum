@@ -3,6 +3,7 @@ import sys
 import six
 import inspect
 from textwrap import TextWrapper
+from plumbum.cli.completion import Completion, pre_quote
 from plumbum.cli.terminal import get_terminal_size
 from plumbum.cli.switches import (SwitchError, UnknownSwitch, MissingArgument, WrongArgumentType,
     MissingMandatorySwitch, SwitchCombinationError, PositionalArgumentsError, switch,
@@ -12,6 +13,8 @@ from plumbum.cli.switches import (SwitchError, UnknownSwitch, MissingArgument, W
 class ShowHelp(SwitchError):
     pass
 class ShowVersion(SwitchError):
+    pass
+class ShowHelpZshComp(SwitchError):
     pass
 
 class SwitchParseInfo(object):
@@ -277,6 +280,8 @@ class Application(object):
             raise ShowHelp()
         if six.get_method_function(self.version) in swfuncs:
             raise ShowVersion()
+        if six.get_method_function(self.help_zsh_comp) in swfuncs:
+            raise ShowHelpZshComp()
 
         requirements = {}
         exclusions = {}
@@ -337,6 +342,8 @@ class Application(object):
             inst.help()
         except ShowVersion:
             inst.version()
+        except ShowHelpZshComp:
+            inst.help_zsh_comp()
         except SwitchError:
             ex = sys.exc_info()[1]  # compatibility with python 2.5
             print("Error: %s" % (ex,))
@@ -410,6 +417,9 @@ class Application(object):
 
         def switchs(by_groups, show_groups):
             for grp, swinfos in sorted(by_groups.items(), key = lambda item: item[0]):
+                if grp == "Hidden-switches":
+                    continue
+
                 if show_groups:
                     print("%s:" % (grp,))
 
@@ -477,6 +487,167 @@ class Application(object):
                 else:
                     padding = " " * max(cols - wrapper.width - len(name) - 4, 1)
                 print(description_indent % (name, padding, msg))
+
+    @switch(["--help-zsh-comp"], overridable = True, group = "Hidden-switches")
+    def help_zsh_comp(self):  # @ReservedAssignment
+        """Generates zsh completion syntax and quits"""
+
+        def switches(command):
+            by_groups = {}
+            for func, si in command._switches_by_func.iteritems():
+                if si.group == 'Hidden-switches' \
+                   or (si.group != 'Meta-switches'
+                       and command.parent
+                       and func in command.parent._switches_by_func):
+                    continue
+
+                if si.group not in by_groups:
+                    by_groups[si.group] = []
+                by_groups[si.group].append(si)
+
+            def readd_dashes_and_join(flags):
+                return ",".join(("-" if len(n) == 1 else "--") + n for n in flags)
+                        # if self._switches_by_name[n] == si)
+
+            for grp, swinfos in sorted(by_groups.items(), key = lambda item: item[0]):
+                for si in sorted(swinfos, key = lambda si: si.names):
+                    swnames = readd_dashes_and_join(si.names)
+                    if len(si.names) > 1:
+                        swnames = '{' + swnames + '}'
+
+                    if si.argtype:
+                        if isinstance(si.completion, Completion):
+                            # use + as a marker for switches
+                            name = '+' + si.names[0]
+                            zsh_action = si.completion.zsh_action(name)
+                            argtype = ": :%s" % pre_quote(zsh_action)
+                        else:
+                            argtype = ": : "
+                    else:
+                        argtype = ""
+
+                    if si.list:
+                        list = "\\*"
+                    else:
+                        list = ""
+
+                    if si.excludes:
+                        excludes = "'(%s)'" % readd_dashes_and_join(si.excludes)
+                    else:
+                        excludes = ""
+
+                    if si.help:
+                        help = pre_quote(si.help)
+                    else:
+                        help = ""
+
+                    if si.mandatory:
+                        help += " (mandatory)"
+
+                    yield '%s%s%s"[%s]%s"' % (excludes,
+                                              list,
+                                              swnames,
+                                              help,
+                                              argtype)
+
+        def arguments(command):
+            specs = []
+
+            m_args, m_varargs, _, m_defaults = inspect.getargspec(command.main)
+            comp_dict = getattr(command.main, "__plumbum_completion__", dict())
+            no_of_mandatory_args = len(m_args[1:])
+            if m_defaults:
+                no_of_mandatory_args -= len(m_defaults)
+                if command._subcommands:
+                    sys.stderr.write("Mixing subcommands and optional arguments is not fully supported, expect unexpected behaviour.\n")
+
+            for n, arg in enumerate(m_args[1:]):
+                optional = n >= no_of_mandatory_args
+                specs.append("':%s%s:%s'" % (':' if optional else '',
+                                             arg,
+                                             comp_dict[arg].zsh_action(arg)
+                                             if arg in comp_dict else ' '))
+
+            if m_varargs:
+                if command._subcommands:
+                    sys.stderr.write("Mixing subcommands and variable arguments is not supported.\nIgnoring the argument %s.\n" % m_varargs)
+                else:
+                    zsh_action = comp_dict[m_varargs].zsh_action(m_varargs) \
+                                 if m_varargs in comp_dict else ' '
+                    specs.append("'*:::%s:%s'" % (m_varargs,
+                                                  zsh_action))
+
+            return specs
+
+        def subcommands(command, prefix):
+            commands = command._subcommands
+            if not commands:
+                return "", [], ""
+
+            def first_line(string):
+                return string[:string.find("\n")]
+
+            func_defs = []
+            funcs = {}
+            for name, subapp in sorted(commands.items()):
+                desc = first_line(subapp.DESCRIPTION
+                                  if subapp.DESCRIPTION
+                                  else inspect.getdoc(subapp))
+
+                subapp_instance = subapp(self.executable)
+                subapp_instance.parent = command
+
+                func_defs += zsh_completion_functions("%s_%s" % (prefix, name),
+                                                      subapp_instance)
+                funcs[name] = '"%s\\:%s"' % (name, pre_quote(desc))
+
+            func_specs = ("': :((" + " ".join(funcs.itervalues()) + "))'",
+                          "'*:: : _next %s'" % prefix)
+
+            func_extras = "__m_subcommands=(%s)\n" % " ".join(commands)
+            return func_specs, func_defs, func_extras
+
+        def zsh_completion_functions(name, command):
+            args_specs = arguments(command)
+            func_specs, func_defs, func_extras = subcommands(command, name)
+            switch_defs = switches(command)
+
+            func_defs.append("%s() {\n" % name +
+                             ("typeset __m_subcommands\n"
+                              if command.parent is None else "") +
+                             func_extras +
+                             "_arguments -s -A ':' " +
+                             " ".join(switch_defs) + " " +
+                             " ".join(args_specs) + " " +
+                             " ".join(func_specs) +
+                             "\n}\n")
+
+            return func_defs
+
+        func_defs = zsh_completion_functions("_" + self.PROGNAME, self)
+
+        func_defs.append("""
+__is_word_in_array () {
+  local word=$1; shift
+  [[ ${@[(i)$word]} -le ${#@} ]] || return 1
+}
+
+_next() {
+  local p n f
+  p=$1; shift
+  for n in {1..$(( $CURRENT-1 ))}
+  if __is_word_in_array ${words[$n]} ${__m_subcommands}
+  then
+    f=${p}_$words[$n]
+    compset -n $n
+    $f
+    break
+  fi
+}
+        """)
+
+        print "#compdef %s\n\n" % self.PROGNAME + "\n\n" \
+            + "\n".join(func_defs) + "\n" + '_%s "$@"' % self.PROGNAME
 
     def _get_prog_version(self):
         ver = None
