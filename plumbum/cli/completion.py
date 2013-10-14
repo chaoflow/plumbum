@@ -98,15 +98,9 @@ class CompletionMixin(object):
         def switches(command):
             by_groups = {}
             for func, si in command._switches_by_func.iteritems():
-                if si.group == 'Hidden-switches' \
-                   or (si.group != 'Meta-switches'
-                       and command.parent
-                       and func in command.parent._switches_by_func):
+                if si.group == 'Hidden-switches':
                     continue
-
-                if si.group not in by_groups:
-                    by_groups[si.group] = []
-                by_groups[si.group].append(si)
+                by_groups.setdefault(si.group, []).append(si)
 
             def readd_dashes_and_join(flags):
                 return ",".join(("-" if len(n) == 1 else "--") + n for n in flags)
