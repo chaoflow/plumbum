@@ -78,11 +78,11 @@ def completion(*comp_array, **comp_dict):
 
             func._switch_info.completion = completion
         else:
-            if not comp_dict:
-                raise TypeError("completion() on the main function takes at least one keyword argument (None given)")
             if func.__name__ not in ("main", "__call__"):
                 raise TypeError("completion() has to be applied to the main function or switches")
 
+            if not comp_dict:
+                raise TypeError("completion() on the main function takes at least one keyword argument (None given)")
             func.__plumbum_completion__ = comp_dict
 
         return func
@@ -102,9 +102,8 @@ class CompletionMixin(object):
                     continue
                 by_groups.setdefault(si.group, []).append(si)
 
-            def readd_dashes_and_join(flags):
-                return ",".join(("-" if len(n) == 1 else "--") + n for n in flags)
-                        # if self._switches_by_name[n] == si)
+            def readd_dashes_and_join(flags, sep=","):
+                return sep.join(("-" if len(n) == 1 else "--") + n for n in flags)
 
             for grp, swinfos in sorted(by_groups.items(), key = lambda item: item[0]):
                 for si in sorted(swinfos, key = lambda si: si.names):
@@ -129,7 +128,7 @@ class CompletionMixin(object):
                         list = ""
 
                     if si.excludes:
-                        excludes = "'(%s)'" % readd_dashes_and_join(si.excludes)
+                        excludes = "'(%s)'" % readd_dashes_and_join(si.excludes, " ")
                     else:
                         excludes = ""
 
@@ -156,21 +155,26 @@ class CompletionMixin(object):
             if m_defaults:
                 no_of_mandatory_args -= len(m_defaults)
                 if command._subcommands:
-                    sys.stderr.write("Mixing subcommands and optional arguments is not fully supported, expect unexpected behaviour.\n")
 
+                    sys.stderr.write("Mixing subcommands and optional "
+                                     "arguments is not fully supported, "
+                                     "expect unexpected behaviour.\n")
+            class NoCompletion(Completion):
+                def zsh_action(arg): return ' '
             for n, arg in enumerate(m_args[1:]):
                 optional = n >= no_of_mandatory_args
-                specs.append("':%s%s:%s'" % (':' if optional else '',
-                                             arg,
-                                             comp_dict[arg].zsh_action(arg)
-                                             if arg in comp_dict else ' '))
+                zsh_action = comp_dict.get(arg, NoCompletion()).zsh_action()
+                specs.append("':%s%s:%s'"
+                             % (':' if optional else '', arg, zsh_action))
 
             if m_varargs:
                 if command._subcommands:
-                    sys.stderr.write("Mixing subcommands and variable arguments is not supported.\nIgnoring the argument %s.\n" % m_varargs)
+                    sys.stderr.write("Mixing subcommands and variable "
+                                     "arguments is not supported.\n"
+                                     "Ignoring the argument %s.\n" % m_varargs)
                 else:
-                    zsh_action = comp_dict[m_varargs].zsh_action(m_varargs) \
-                                 if m_varargs in comp_dict else ' '
+                    zsh_action = comp_dict.get(m_varargs, NoCompletion()) \
+                                              .zsh_action(m_varargs)
                     specs.append("'*:::%s:%s'" % (m_varargs,
                                                   zsh_action))
 
@@ -185,8 +189,8 @@ class CompletionMixin(object):
                 return string[:string.find("\n")]
 
             func_defs = []
-            funcs = {}
-            for name, subcls in sorted(commands.items()):
+            func_descriptions = []
+            for name, subcls in sorted(commands.items(), key=lambda it: it[0]):
                 subapp = subcls.get()
 
                 desc = first_line(subapp.DESCRIPTION
@@ -198,9 +202,9 @@ class CompletionMixin(object):
 
                 func_defs += zsh_completion_functions("%s_%s" % (prefix, name),
                                                       subapp_instance)
-                funcs[name] = '"%s\\:%s"' % (name, pre_quote(desc))
+                func_descriptions.append('"%s\\:%s"' % (name, pre_quote(desc)))
 
-            func_specs = ("': :((" + " ".join(funcs.itervalues()) + "))'",
+            func_specs = ("': :((" + " ".join(func_descriptions) + "))'",
                           "'*:: : _next %s'" % prefix)
 
             func_extras = "__m_subcommands=(%s)\n" % " ".join(commands)
@@ -209,7 +213,7 @@ class CompletionMixin(object):
         def zsh_completion_functions(name, command):
             args_specs = arguments(command)
             func_specs, func_defs, func_extras = subcommands(command, name)
-            switch_defs = switches(command)
+            switch_specs = switches(command)
 
             func_defs.append("%s() {\n" % name +
                              "_debug %s\n" % name +
@@ -218,7 +222,7 @@ class CompletionMixin(object):
                               if command.parent is None else "") +
                              func_extras +
                              "_arguments -s -A ':' " +
-                             " ".join(switch_defs) + " " +
+                             " ".join(switch_specs) + " " +
                              " ".join(args_specs) + " " +
                              " ".join(func_specs) +
                              "\n}\n")
@@ -289,8 +293,8 @@ __m_complete_path_like () {
 }
         """)
 
-        print "#compdef %s\n\n" % self.PROGNAME + "\n\n" \
-            + "\n".join(func_defs) + "\n" + '_%s "$@"' % self.PROGNAME
+        print ("#compdef %s\n\n" % self.PROGNAME + "\n\n" \
+               + "\n".join(func_defs) + "\n" + '_%s "$@"' % self.PROGNAME)
 
     @switch(["--complete"], argtype=str, overridable = True, group = "Hidden-switches")
     def complete(self, swfuncs, tailargs):  # @ReservedAssignment
@@ -311,7 +315,10 @@ __m_complete_path_like () {
             completion = swinfo.completion
         else:
             comp_dict = getattr(self.main, "__plumbum_completion__", dict())
-            completion = comp_dict[argname]
+            try:
+                completion = comp_dict[argname]
+            except KeyError:
+                return
 
             m_args, m_varargs, _, _ = inspect.getargspec(self.main)
             m_args = m_args[1:] # remove self
@@ -325,4 +332,4 @@ __m_complete_path_like () {
                 prefix = tailargs[len(m_args) + int(current) - 1]
 
         for x in completion.complete(self, prefix):
-                print x
+            print x
