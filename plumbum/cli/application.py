@@ -3,7 +3,7 @@ import sys
 import inspect
 from plumbum.lib import six
 from textwrap import TextWrapper
-from plumbum.cli.completion import Completion, pre_quote
+from plumbum.cli.completion import CompletionMixin
 from plumbum.cli.terminal import get_terminal_size
 from plumbum.cli.switches import (SwitchError, UnknownSwitch, MissingArgument, WrongArgumentType,
     MissingMandatorySwitch, SwitchCombinationError, PositionalArgumentsError, switch,
@@ -286,12 +286,11 @@ class Application(object):
             raise ShowHelpAll()
         if six.get_method_function(self.version) in swfuncs:
             raise ShowVersion()
-        if hasattr(self, "help_zsh_comp") \
-           and six.get_method_function(self.help_zsh_comp) in swfuncs:
-            raise ShowHelpZshComp()
-        if hasattr(self, "complete") \
-           and six.get_method_function(self.complete) in swfuncs:
-            raise ShowCompletion()
+        if isinstance(self, CompletionMixin):
+            if six.get_method_function(self.help_zsh_comp) in swfuncs:
+                raise ShowHelpZshComp()
+            if six.get_method_function(self.complete) in swfuncs:
+                raise ShowCompletion()
 
         requirements = {}
         exclusions = {}
