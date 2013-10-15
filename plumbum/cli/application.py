@@ -17,8 +17,10 @@ class ShowHelpAll(SwitchError):
 class ShowVersion(SwitchError):
     pass
 class ShowHelpZshComp(SwitchError):
+    '''Error raised by _validate_args upon encountering the --help-zsh-comp switch'''
     pass
 class ShowCompletion(SwitchError):
+    '''Error raised by _validate_args upon encountering the --complete switch'''
     pass
 
 class SwitchParseInfo(object):
@@ -287,6 +289,9 @@ class Application(object):
         if six.get_method_function(self.version) in swfuncs:
             raise ShowVersion()
         if isinstance(self, CompletionMixin):
+            # don't validate args, if a help_zsh_comp or complete
+            # switch has been given on the command line; hand control
+            # back to the run method
             if six.get_method_function(self.help_zsh_comp) in swfuncs:
                 raise ShowHelpZshComp()
             if six.get_method_function(self.complete) in swfuncs:
@@ -354,8 +359,14 @@ class Application(object):
         except ShowVersion:
             inst.version()
         except ShowHelpZshComp:
+            # help_zsh_comp switch was on the command line. execute
+            # its function.
             inst.help_zsh_comp()
         except ShowCompletion:
+            # the complete switch was on the command line. do the completion.
+            # the parsed command line of the current subcommand is in
+            # swfuncs -- switches and their arguments
+            # tailargs -- positional arguments
             inst.complete(swfuncs, tailargs)
         except SwitchError:
             ex = sys.exc_info()[1]  # compatibility with python 2.5
@@ -455,6 +466,7 @@ class Application(object):
 
         def switchs(by_groups, show_groups):
             for grp, swinfos in sorted(by_groups.items(), key = lambda item: item[0]):
+                # Switch group "Hidden-switches" is omitted from help
                 if grp == "Hidden-switches":
                     continue
 
