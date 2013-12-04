@@ -12,6 +12,8 @@ from plumbum.cli.switches import (SwitchError, UnknownSwitch, MissingArgument, W
 
 class ShowHelp(SwitchError):
     pass
+class ShowHelpAll(SwitchError):
+    pass
 class ShowVersion(SwitchError):
     pass
 class ShowHelpZshComp(SwitchError):
@@ -282,6 +284,8 @@ class Application(object):
     def _validate_args(self, swfuncs, tailargs):
         if six.get_method_function(self.help) in swfuncs:
             raise ShowHelp()
+        if six.get_method_function(self.helpall) in swfuncs:
+            raise ShowHelpAll()
         if six.get_method_function(self.version) in swfuncs:
             raise ShowVersion()
         if isinstance(self, CompletionMixin):
@@ -350,6 +354,8 @@ class Application(object):
             ordered, tailargs = inst._validate_args(swfuncs, tailargs)
         except ShowHelp:
             inst.help()
+        except ShowHelpAll:
+            inst.helpall()
         except ShowVersion:
             inst.version()
         except ShowHelpZshComp:
@@ -402,6 +408,21 @@ class Application(object):
         else:
             print("main() not implemented")
             return 1
+
+    @switch(["--help-all"], overridable = True, group = "Meta-switches")
+    def helpall(self):
+        """Prints the help messages of all subcommands and quits"""
+        self.help()
+        print "\n"
+
+        if self._subcommands:
+            for name, subcls in sorted(self._subcommands.items()):
+                subapp = (subcls.get())("%s %s" % (self.PROGNAME, name))
+                subapp.parent = self
+                for si in subapp._switches_by_func.values():
+                    if si.group == "Meta-switches":
+                        si.group = "Hidden-switches"
+                subapp.helpall()
 
     @switch(["-h", "--help"], overridable = True, group = "Meta-switches")
     def help(self):  # @ReservedAssignment
