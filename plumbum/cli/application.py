@@ -542,5 +542,5 @@ class Application(object):
     def version(self):
         """Prints the program's version and quits"""
         ver = self._get_prog_version()
-        print ("%s %s" % (self.PROGNAME, ver if ver is not None else "(no version set)"))
+        print ("\033[0;36m%s\033[0m %s" % (self.PROGNAME, ver if ver is not None else "(no version set)"))
 
