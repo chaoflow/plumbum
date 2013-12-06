@@ -1,6 +1,7 @@
 import inspect
 from plumbum.cli.switches import switch
 
+
 def pre_quote(string):
     """Wrap \ and " to prepare for enclosing in another layer of ".." """
     return string.replace("\\", "\\\\") \
@@ -341,7 +342,7 @@ myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
 
             # the zsh action corresponding to No Completion is ' '
             class NoCompletion(Completion):
-                def zsh_action(arg): return ' '
+                def zsh_action(self, argname): return ' '
 
             # zsh argument specs for positional arguments, like
             # :${argname}:${zsh_action}
@@ -349,7 +350,7 @@ myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
             # ::${argname}:${zsh_action}
             for n, arg in enumerate(m_args[1:]):
                 optional = n >= no_of_mandatory_args
-                zsh_action = comp_dict.get(arg, NoCompletion()).zsh_action()
+                zsh_action = comp_dict.get(arg, NoCompletion()).zsh_action(arg)
                 specs.append("':%s%s:%s'"
                              % (':' if optional else '', arg, zsh_action))
 
@@ -362,7 +363,7 @@ myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
                                      "Ignoring the argument %s.\n" % m_varargs)
                 else:
                     zsh_action = comp_dict.get(m_varargs, NoCompletion()) \
-                                              .zsh_action(m_varargs)
+                                          .zsh_action(m_varargs)
                     specs.append("'*:::%s:%s'" % (m_varargs,
                                                   zsh_action))
 
@@ -413,7 +414,7 @@ func_extras -- shell commands executed before the _arguments call,
                                                       subapp_instance)
                 func_descriptions.append('"%s\\:%s"' % (name, pre_quote(desc)))
 
-            func_specs = ("': :((" + " ".join(func_descriptions) + "))'",
+            func_specs = ('": :((' + pre_quote(" ".join(func_descriptions)) + '))"',
                           "'*:: : _next %s'" % prefix)
             # func_specs have the form
             #     ': :(("<name>\:<desc>" "<name2>\:<desc2>" ...))
@@ -555,6 +556,7 @@ __m_remove_subcommand () {
 __m_complete_general () {
   local results global_expl="$expl" expl where
   where=$1; shift
+  [ "${line:0:1}" = "-" ] && return
   _debug "complete_general with path $where"
 
   __m_remove_subcommand
@@ -565,6 +567,7 @@ __m_complete_general () {
 __m_complete_path_like () {
   local results global_expl="$expl" expl where
   where=$1; shift
+  [ "${line:0:1}" = "-" ] && return
   _debug "complete_path_like with path $where"
 
   __m_remove_subcommand
