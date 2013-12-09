@@ -449,7 +449,9 @@ command -- instance of plumbum.cli.Application, representing the current
                               "__m_words=(\"${(@)words}\")\n"
                               if command.parent is None else "") +
                              func_extras +
-                             "_arguments -s -A ':' " +
+                             "_arguments -s " +
+                             ("-A '-*' " if not command._subcommands else "") +
+                             "':' " +
                              " ".join(switch_specs) + " " +
                              " ".join(args_specs) + " " +
                              " ".join(func_specs) +
