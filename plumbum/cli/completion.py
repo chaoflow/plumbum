@@ -111,13 +111,14 @@ possible further completions.
 Also refer to the ``complete`` switch method in CompletionMixin.
     '''
 
-    def complete(self, command, prefix):
+    def complete(self, command, prefix, posargs):
         '''Return the possible completions
 
 Arguments:
 command -- instance of the current subcommand
            (with all switches and arguments already initialised)
 prefix  -- text already supplied for the current argument
+posargs -- dictionary mapping the positional arguments to their values
 
 Its two arguments are the  () and the prefix from which to complete.
         '''
@@ -139,20 +140,21 @@ DynamicCompletion directly.
 
 Arguments:
 callback -- callback method, with a signature like
-            cb(command, prefix, *args) returning completionlist
+            cb(command, prefix, posargs, *args) returning completionlist
 *args    -- Additional arguments to be passed to the callback method
         '''
         self.callback = callback
         self.args = args
 
-    def complete(self, command, prefix):
+    def complete(self, command, prefix, posargs):
         '''Return completion possibilities.
 
 Arguments:
 command -- current subcommand or Application
 prefix  -- text already supplied for the argument
+posargs -- dictionary mapping the positional arguments to their values
         '''
-        return self.callback(command, prefix, *self.args)
+        return self.callback(command, prefix, posargs, *self.args)
 
 
 #
@@ -611,6 +613,15 @@ specific Application or subcommand; i.e. it refers to the Profile
 subcommand.
         """
 
+        # build a dictionary posargs from the positional arguments of
+        # tailargs. it will be passed to the completion object
+        m_args, m_varargs, _, _ = inspect.getargspec(self.main)
+        m_args = m_args[1:]  # remove self
+
+        posargs = dict(zip(m_args, tailargs))
+        if m_varargs is not None and len(m_args) < len(tailargs):
+            posargs[m_varargs] = tailargs[len(m_args):]
+
         # as the switch --complete is intercepted at the beginning of
         # Application._validate_args, the methods corresponding to
         # switches of this command have to be called by us (normally
@@ -626,7 +637,7 @@ subcommand.
             # iterate over switches
             if f == complete_func:
                 # don't call the complete switch (us), instead extract
-                # argname and current_position from its argument.
+                # argname and current position from its argument.
                 argname, current = sf.val[0].split(':')
             else:
                 f(self, *sf.val)
@@ -651,29 +662,16 @@ subcommand.
             comp_dict = getattr(self.main, "__plumbum_completion__", dict())
             try:
                 completion = comp_dict[argname]
+
+                prefix = posargs[argname]
+                if argname == m_varargs:
+                    # current starts counting at 1
+                    prefix = prefix[int(current) - 1]
             except KeyError:
                 # should only happen, when an inquisitive user tries
                 # to handcraft --complete
                 return
 
-            m_args, m_varargs, _, _ = inspect.getargspec(self.main)
-            m_args = m_args[1:] # remove self
-
-            try:
-                # try to find the argument to be completed in the
-                # positional arguments to access the supplied prefix.
-                # tailargs is the list of arguments from the command
-                # line for this subcommand's main function
-                index = m_args.index(argname)
-                prefix = tailargs[index]
-            except ValueError:
-                # must be in m_varargs then
-                assert(m_varargs == argname)
-                # current is used to determine, which argument from
-                # the variable argument list, should be completed. it
-                # starts counting at 1.
-                prefix = tailargs[len(m_args) + int(current) - 1]
-
         # print the completions the completion object returns
-        for x in completion.complete(self, prefix):
+        for x in completion.complete(self, prefix, posargs):
             print x
