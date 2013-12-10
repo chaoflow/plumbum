@@ -654,6 +654,12 @@ subcommand.
             func = swinfo.func
             prefix = swfuncs[func].val[0]
             completion = swinfo.completion
+
+            if swinfo.list:
+                # heuristically just assume we are completing the last
+                # switch, there is no way currently to make a more
+                # informed choice
+                prefix = prefix[-1]
         else:
             # argument of main method
 
