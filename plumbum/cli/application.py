@@ -490,7 +490,7 @@ class Application(object):
         cols, _ = get_terminal_size()
         min_msg_width = 50
         description_indent = "    %s%s%s"
-        wrapper = TextWrapper(width = max(cols - sw_width, min_msg_width) - 2)
+        wrapper = TextWrapper(width = max(cols - sw_width, min_msg_width) - 6)
         indentation = "\n" + " " * (cols - wrapper.width)
 
         for si, prefix in switchs(by_groups, True):
