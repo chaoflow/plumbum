@@ -526,7 +526,7 @@ _debug() {
   echo "line: $line" >> /tmp/log
   echo "context: $curcontext" >> /tmp/log
 }
-        """)
+""")
 
         # Helper methods, which make sure the next subcommand
         # definition is found
@@ -548,7 +548,7 @@ _next() {
     break
   fi
 }
-        """)
+""")
 
         # Helper methods, necessary for dynamic completion
         # TODO error piping to /tmp/log should at least be conditional
@@ -583,7 +583,7 @@ __m_complete_path_like () {
   results=($(_call_program complete-path-like \\"${(@)__m_words}\\" --complete $where:$CURRENT 2>> /tmp/log))
   _wanted complete-path-like expl '' _multi_parts $global_expl -f - / results
 }
-        """)
+""")
 
         # Print all functions to stdout, together with the usual zsh
         # completion header and footer
