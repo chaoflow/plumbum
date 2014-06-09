@@ -3,7 +3,7 @@ import sys
 from plumbum.cli.switches import switch
 
 
-def pre_quote(string):
+def escape(string):
     """Wrap \ and " to prepare for enclosing in another layer of ".." """
     return string.replace("\\", "\\\\") \
                  .replace('"', '\\"')
@@ -42,7 +42,7 @@ class FileCompletion(Completion):
         self.glob = glob
 
     def zsh_action(self, argname):
-        return "_files" + (' -g "%s"' % pre_quote(self.glob) if self.glob else "")
+        return "_files" + (' -g "%s"' % escape(self.glob) if self.glob else "")
 
 
 class DirectoryCompletion(Completion):
@@ -87,12 +87,12 @@ class ListCompletion(Completion):
     def zsh_action(self, argname):
         if self.comp_list:
             # syntax looks like: ("foo" "bar")
-            return "(%s)" % " ".join('"%s"' % pre_quote(x)
+            return "(%s)" % " ".join('"%s"' % escape(x)
                                      for x in self.comp_list)
         elif self.comp_dict:
             # syntax looks like:
             # ("foo\\:Help for foo" "bar\\:Help for bar")
-            return "(%s)" % " ".join('"%s\\\\:%s"' % (pre_quote(k), pre_quote(v))
+            return "(%s)" % " ".join('"%s\\\\:%s"' % (escape(k), escape(v))
                                      for k,v in self.comp_dict.iteritems())
         else:
             return ""
@@ -280,7 +280,7 @@ class CompletionMixin(object):
                             # use + as a marker for switches
                             name = '+' + si.names[0]
                             zsh_action = si.completion.zsh_action(name)
-                            argtype = ": :%s" % pre_quote(zsh_action)
+                            argtype = ": :%s" % escape(zsh_action)
                         else:
                             argtype = ": : "
                     else:
@@ -297,7 +297,7 @@ class CompletionMixin(object):
                         excludes = ""
 
                     if si.help:
-                        help = pre_quote(si.help)
+                        help = escape(si.help)
                     else:
                         help = ""
 
@@ -420,9 +420,9 @@ class CompletionMixin(object):
                 # collect the zsh functions for the subcommand's branch
                 func_defs += zsh_completion_functions("%s_%s" % (prefix, name),
                                                       subapp_instance)
-                func_descriptions.append('"%s\\:%s"' % (name, pre_quote(desc)))
+                func_descriptions.append('"%s\\:%s"' % (name, escape(desc)))
 
-            func_specs = ('": :((' + pre_quote(" ".join(func_descriptions)) + '))"',
+            func_specs = ('": :((' + escape(" ".join(func_descriptions)) + '))"',
                           "'*:: : _next %s'" % prefix)
             # func_specs have the form
             #     ': :(("<name>\:<desc>" "<name2>\:<desc2>" ...))
