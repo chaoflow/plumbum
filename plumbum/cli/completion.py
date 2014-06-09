@@ -13,28 +13,30 @@ def pre_quote(string):
 #
 
 class Completion(object):
-    '''Abstract base class for Completion objects.
+    """Abstract base class for Completion objects.
 
-Completion objects are used by the completion decorator or the
-completion argument for attribute constructors (SwitchAttr, ...).
+    Completion objects are used by the completion decorator or the
+    completion argument for attribute constructors (SwitchAttr, ...).
 
-They must define a zsh_action function, which provides zsh specific
-code, describing a set of completion possibilities. It is called by
-the ``--help-zsh-comp``-switch-function to generate the zsh completion
-file. (Refer to the zshcompsys manpage for further details on action).
-'''
+    They must define a zsh_action function, which provides zsh
+    specific code, describing a set of completion possibilities. It is
+    called by the ``--help-zsh-comp``-switch-function to generate the
+    zsh completion file. (Refer to the zshcompsys manpage for further
+    details on action).
+
+    """
 
     def zsh_action(self, argname):
         raise NotImplemented
 
 
 class FileCompletion(Completion):
-    '''Completion class for completing filenames
+    """Completion class for completing filenames
 
-Arguments:
-glob -- a glob pattern to filter shown filenames (default None)
+    Arguments:
+    glob -- a glob pattern to filter shown filenames (default None)
     , possibly using a pattern.
-'''
+    """
 
     def __init__(self, glob=None):
         self.glob = glob
@@ -44,30 +46,30 @@ glob -- a glob pattern to filter shown filenames (default None)
 
 
 class DirectoryCompletion(Completion):
-    '''Completion class for completing directory names'''
+    """Completion class for completing directory names"""
     def zsh_action(self, argname):
         return "_path_files -/"
 
 
 class ListCompletion(Completion):
-    '''Completion class for completing a static list (possibly with comments)
+    """Static list completion with optional comments
 
-Keywords:
-*comp_list  -- list of completion possibilities without comments
-**comp_dict -- completion possibilities as dictionary
-               keys are the completion strings,
-               values are the respective comments
+    Keywords:
+    *comp_list  -- list of completion possibilities without comments
+    **comp_dict -- completion possibilities as dictionary
+                   keys are the completion strings,
+                   values are the respective comments
 
-It's not possible to mix the two approaches.
+    It's not possible to mix the two approaches.
 
-Usage examples:
-ListCompletion("foo", "bar")
-ListCompletion(foo="Help for foo", bar="Help for bar")
+    Usage examples:
+    ListCompletion("foo", "bar")
+    ListCompletion(foo="Help for foo", bar="Help for bar")
 
-Alternative usage:
-ListCompletion(("foo", "bar"))
-ListCompletion({ "foo": "Help for foo", "bar": "Help for bar"})
-'''
+    Alternative usage:
+    ListCompletion(("foo", "bar"))
+    ListCompletion({ "foo": "Help for foo", "bar": "Help for bar"})
+    """
     def __init__(self, *comp_list, **comp_dict):
         # Handle the alternative usage case
         if len(comp_list) == 1:
@@ -97,32 +99,33 @@ ListCompletion({ "foo": "Help for foo", "bar": "Help for bar"})
 
 
 class DynamicCompletion(Completion):
-    '''Abstract base class for DynamicCompletion objects.
+    """Abstract base class for DynamicCompletion objects.
 
-They must define a zsh_action function like Completion, which provides
-zsh specific code, describing a set of completion possibilities. It is
-called by the ``--help-zsh-comp``-switch-function to generate the zsh
-completion file. (Refer to the zshcompsys manpage for further details
-on action).
+    They must define a zsh_action function like Completion, which
+    provides zsh specific code, describing a set of completion
+    possibilities. It is called by the ``--help-zsh-comp`` switch
+    function to generate the zsh completion file. (Refer to the
+    zshcompsys manpage for further details on action).
 
-Additionally they need to define a complete function. It is called,
-when completing its associated argument and asked to return a list of
-possible further completions.
+    Additionally they need to define a complete function. It is
+    called, when completing its associated argument and asked to
+    return a list of possible further completions.
 
-Also refer to the ``complete`` switch method in CompletionMixin.
-    '''
+    Also refer to the ``complete`` switch method in CompletionMixin.
+
+    """
 
     def complete(self, command, prefix, posargs):
-        '''Return the possible completions
+        """Return the possible completions
 
-Arguments:
-command -- instance of the current subcommand
-           (with all switches and arguments already initialised)
-prefix  -- text already supplied for the current argument
-posargs -- dictionary mapping the positional arguments to their values
+        Arguments:
+        command -- instance of the current subcommand
+                   (with all switches and arguments already initialised)
+        prefix  -- text already supplied for the current argument
+        posargs -- dictionary mapping the positional arguments to their values
 
-Its two arguments are the  () and the prefix from which to complete.
-        '''
+        Its two arguments are the  () and the prefix from which to complete.
+        """
         raise NotImplemented
 
     def zsh_action(self, argname):
@@ -131,30 +134,30 @@ Its two arguments are the  () and the prefix from which to complete.
 
 
 class CallbackDynamicCompletion(DynamicCompletion):
-    '''Wrapper to use a callback function for dynamic completions
+    """Wrapper to use a callback function for dynamic completions
 
-Simplifies using DynamicCompletions by not having to subclass
-DynamicCompletion directly.
-    '''
+    Simplifies using DynamicCompletions by not having to subclass
+    DynamicCompletion directly.
+    """
     def __init__(self, callback, *args):
-        '''Constructor.
+        """Constructor.
 
-Arguments:
-callback -- callback method, with a signature like
-            cb(command, prefix, posargs, *args) returning completionlist
-*args    -- Additional arguments to be passed to the callback method
-        '''
+        Arguments:
+        callback -- callback method, with a signature like
+                    cb(command, prefix, posargs, *args) returning completionlist
+        *args    -- Additional arguments to be passed to the callback method
+        """
         self.callback = callback
         self.args = args
 
     def complete(self, command, prefix, posargs):
-        '''Return completion possibilities.
+        """Return completion possibilities.
 
-Arguments:
-command -- current subcommand or Application
-prefix  -- text already supplied for the argument
-posargs -- dictionary mapping the positional arguments to their values
-        '''
+        Arguments:
+        command -- current subcommand or Application
+        prefix  -- text already supplied for the argument
+        posargs -- dictionary mapping the positional arguments to their values
+        """
         return self.callback(command, prefix, posargs, *self.args)
 
 
@@ -162,27 +165,27 @@ posargs -- dictionary mapping the positional arguments to their values
 # decorator
 #
 def completion(*comp_array, **comp_dict):
-    '''Decorator to mark arguments supporting Completions.
+    """Decorator to mark arguments supporting Completions.
 
-It can be applied to main function of Subcommand or Application
-and SwitchMethods of any type.
+    It can be applied to main function of Subcommand or Application
+    and SwitchMethods of any type.
 
-Usage example:
+    Usage example:
 
-class Command(plumbum.cli.Application)
-  @plumbum.cli.completion(tpv.cli.ListCompletion("foo", "bar"))
-  @switch(["--arg"])
-  def arg(self):
-    [...]
+    class Command(plumbum.cli.Application)
+        @plumbum.cli.completion(tpv.cli.ListCompletion("foo", "bar"))
+        @switch(["--arg"])
+        def arg(self):
+          [...]
 
-  @plumbum.cli.completion(directory=tpv.cli.CallbackDynamicCompletion(cb),
-                          filenames=tpv.cli.FileCompletion(glob="*.py"))
-  def main(self, directory, *filenames):
-    [...]
-    '''
+        @plumbum.cli.completion(directory=tpv.cli.CallbackDynamicCompletion(cb),
+                                filenames=tpv.cli.FileCompletion(glob="*.py"))
+        def main(self, directory, *filenames):
+          [...]
+    """
 
     def deco(func):
-        '''Installs the completion objects into the given method ``func``'''
+        """Installs the completion objects into the given method ``func``"""
 
         if hasattr(func, '_switch_info'):
             # func describes a switch
@@ -221,33 +224,35 @@ class Command(plumbum.cli.Application)
 
 
 class CompletionMixin(object):
-    '''Mixin class to cli.Application, which provides switches for zsh completion
+    """Mixin class to cli.Application, which provides switches for zsh completion
 
-Usage example:
+    Usage example:
 
-class MyApp(cli.Application, cli.CompletionMixin):
-    @cli.completion(arg=ListCompletion("foo", "bar"))
-    def main(self, arg):
-       [...]
+    class MyApp(cli.Application, cli.CompletionMixin):
+        @cli.completion(arg=ListCompletion("foo", "bar"))
+        def main(self, arg):
+           [...]
 
-provides the top-level switches --help-zsh-comp, which generates zsh
-completion definitions, and an internal switch --complete to support
-dynamic completion.
-    '''
+    provides the top-level switches --help-zsh-comp, which generates zsh
+    completion definitions, and an internal switch --complete to support
+    dynamic completion.
+    """
     @switch(["--help-zsh-comp"], overridable = True, group = "Hidden-switches")
     def help_zsh_comp(self):  # @ReservedAssignment
-        '''Generates zsh completion syntax to stdout and quits
+        """Generates zsh completion syntax to stdout and quits
 
-It iterates over all switches and arguments to the main function of
-the Application and then recursively over all Subcommands and creates
-their static zsh completion code/definitions.
+        It iterates over all switches and arguments to the main
+        function of the Application and then recursively over all
+        Subcommands and creates their static zsh completion
+        code/definitions.
 
-Usage:
-myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
-        '''
+        Usage:
+        myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
+
+        """
 
         def switches(command):
-            '''Return the zsh _argument specifications for the switches of ``command`` '''
+            """Return the zsh _argument specifications for the switches of ``command``"""
 
             # Group the plumbum switches by their group parameter and
             # filter out switches in the special group Hidden-switches
@@ -308,7 +313,7 @@ myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
                                               argtype)
 
         def arguments(command):
-            '''Return argument specifications for the application or subcommand ``command``'''
+            """Return argument specifications for the application or subcommand ``command``"""
             specs = []
 
             # the existing arguments are given by the function
@@ -373,21 +378,21 @@ myapp --help-zsh-comp > <path_to_a_directory_from_fpath>/_myapp
             return specs
 
         def subcommands(command, prefix):
-            '''Return all specifications for the subcommands of ``command`` and their children
+            """Return all specifications for the subcommands of ``command`` and their children
 
-Arguments:
-command -- instance of Application or Subcommand
-prefix  -- name of the completion function to the current ``command``,
-           which is used as prefix for the zsh completion functions of the
-           subcommands.
+            Arguments:
+            command -- instance of Application or Subcommand
+            prefix  -- name of the completion function to the current ``command``,
+                       which is used as prefix for the zsh completion functions of the
+                       subcommands.
 
-Returns a tuple (func_specs, func_defs, func_extras), where:
-func_specs  -- the parameters to the _arguments function for ``command``
-func_defs   -- the list of completion functions for all subcommands recursively
-func_extras -- shell commands executed before the _arguments call,
-               used to set __m_subcommands variable, necessary for subcommand
-               resolution.
-'''
+            Returns a tuple (func_specs, func_defs, func_extras), where:
+            func_specs  -- the parameters to the _arguments function for ``command``
+            func_defs   -- the list of completion functions for all subcommands recursively
+            func_extras -- shell commands executed before the _arguments call,
+                           used to set __m_subcommands variable, necessary for subcommand
+                           resolution.
+            """
             # _subcommands is a dictionary like
             # { <name> : Subcommand(<name>, <class>) }
             commands = command._subcommands
@@ -427,21 +432,20 @@ func_extras -- shell commands executed before the _arguments call,
             return func_specs, func_defs, func_extras
 
         def zsh_completion_functions(name, command):
-            '''Returns a list of zsh completion code-functions for the application
-or subcommand ``command``.
+            """Return zsh completion functions for (sub)``command``.
 
-Collects the definitions provided by the functions ``switches``,
-``arguments`` and ``subcommands``. As ``subcommands`` recursively
-calls back into ``zsh_completion_functions``, the whole definition
-tree of an application is generated.
+            Collects the definitions provided by the functions ``switches``,
+            ``arguments`` and ``subcommands``. As ``subcommands`` recursively
+            calls back into ``zsh_completion_functions``, the whole definition
+            tree of an application is generated.
 
-Arguments:
-name    -- string, used as function name in the zsh completion file and has the
-           form "_${shellname}[_${subcommand1}[_${subcommand2}[...]]]",
-           i.e. _xin_generation_remove
-command -- instance of plumbum.cli.Application, representing the current
-           application or subcommand
-            '''
+            Arguments:
+            name    -- string, used as function name in the zsh completion file and has the
+                       form "_${shellname}[_${subcommand1}[_${subcommand2}[...]]]",
+                       i.e. _xin_generation_remove
+            command -- instance of plumbum.cli.Application, representing the current
+                       application or subcommand
+            """
             args_specs = arguments(command)
             func_specs, func_defs, func_extras = subcommands(command, name)
             switch_specs = switches(command)
@@ -591,27 +595,27 @@ __m_complete_path_like () {
     def complete(self, swfuncs, tailargs):  # @ReservedAssignment
         """Hidden switch for dynamic completion
 
-Example, given that a subcommand profile is defined like
+        Example, given that a subcommand profile is defined like
 
-    class Profile(Application):
-        @plumbum.cli.completion(profilenames=CallbackDynamicCompletion(cb))
-        int main(self, *profilenames):
-            pass
+            class Profile(Application):
+                @plumbum.cli.completion(profilenames=CallbackDynamicCompletion(cb))
+                int main(self, *profilenames):
+                    pass
 
-Then, when the user tries to complete at TAB after entering part of a
-profile name,
+        Then, when the user tries to complete at TAB after entering part of a
+        profile name,
 
-    xin profile --someswitch prefixTAB
+            xin profile --someswitch prefixTAB
 
-Zsh calls effectively
+        Zsh calls effectively
 
-    -> xin profile --someswitch prefix --complete "profilenames:1"
+            -> xin profile --someswitch prefix --complete "profilenames:1"
 
-where the argument to the complete switch is <argname>:<current_position>.
+        where the argument to the complete switch is <argname>:<current_position>.
 
-The self argument of the complete function always refers to the most
-specific Application or subcommand; i.e. it refers to the Profile
-subcommand.
+        The self argument of the complete function always refers to the most
+        specific Application or subcommand; i.e. it refers to the Profile
+        subcommand.
         """
 
         # build a dictionary posargs from the positional arguments of
