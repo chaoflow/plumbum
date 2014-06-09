@@ -349,6 +349,7 @@ class Application(object):
         argv = list(argv)
         inst = cls(argv.pop(0))
         retcode = 0
+        # Some switches use exceptions to prevent normal execution
         try:
             swfuncs, tailargs = inst._parse_args(argv)
             ordered, tailargs = inst._validate_args(swfuncs, tailargs)
@@ -359,14 +360,10 @@ class Application(object):
         except ShowVersion:
             inst.version()
         except ShowHelpZshComp:
-            # help_zsh_comp switch was on the command line. execute
-            # its function.
             inst.help_zsh_comp()
         except ShowCompletion:
-            # the complete switch was on the command line. do the completion.
-            # the parsed command line of the current subcommand is in
-            # swfuncs -- switches and their arguments
-            # tailargs -- positional arguments
+            # ShowCompletion is raised in _validate_args: swfuncs and
+            # tailargs are available.
             inst.complete(swfuncs, tailargs)
         except SwitchError:
             ex = sys.exc_info()[1]  # compatibility with python 2.5
